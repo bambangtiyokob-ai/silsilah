@@ -1,0 +1,219 @@
+<!DOCTYPE html>
+<html lang="id"><head><meta charset="utf-8">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'sha256-SREUSj24klrSpXCD/PGiyheu4Zpq9LQzAdCkppSNiWk='; style-src 'unsafe-inline'; img-src 'self' data:; connect-src https:; manifest-src 'self'; worker-src 'self'; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Silsilah keluarga</title>
+<link rel="manifest" href="manifest.webmanifest"><meta name="theme-color" content="#1f6f54"><link rel="icon" href="icon-192.png"><link rel="apple-touch-icon" href="icon-192.png">
+<style>
+:root{box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px);--bg:#eef1ee;--card:#fbfcfb;--tx:#16221d;--mu:#5b6b64;--bd:#cfd8d3;--ac:#1f6f54;--acbg:#dcefe6;--abt:#fff;--er:#b3261e;color-scheme:light}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#0f1a16;--card:#17251f;--tx:#e6efe9;--mu:#92a59b;--bd:#2c3f37;--ac:#5fcf9f;--acbg:#1e3a2f;--abt:#0b1f17;--er:#f2b8b5;color-scheme:dark}}
+:root[data-theme="dark"]{--bg:#0f1a16;--card:#17251f;--tx:#e6efe9;--mu:#92a59b;--bd:#2c3f37;--ac:#5fcf9f;--acbg:#1e3a2f;--abt:#0b1f17;--er:#f2b8b5;color-scheme:dark}
+*{box-sizing:border-box}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+body{margin:0;background:var(--bg);color:var(--tx);font:15px/1.5 system-ui,-apple-system,"Segoe UI",sans-serif}
+header{display:flex;justify-content:space-between;align-items:center;gap:8px;padding:12px 14px;border-bottom:1px solid var(--bd)}
+h1{font:500 20px Georgia,"Times New Roman",serif;margin:0}
+h2{font:500 17px Georgia,serif;margin:0}
+main{padding:12px 14px;max-width:760px;margin:0 auto}
+button{font:inherit;padding:8px 12px;border:1px solid var(--bd);border-radius:8px;background:var(--card);color:var(--tx)}
+button.pr{background:var(--ac);border-color:var(--ac);color:var(--abt)}
+#sc{overflow:auto;border:1px solid var(--bd);border-radius:12px;background:var(--card);max-height:62vh}
+.card{border:1px solid var(--bd);border-radius:12px;background:var(--card);padding:12px;margin-top:12px}
+label{display:block;font-size:13px;color:var(--mu);margin-top:10px}
+input,select{width:100%;font:inherit;padding:9px;border:1px solid var(--bd);border-radius:8px;background:var(--bg);color:var(--tx)}
+.row{display:flex;gap:8px;margin-top:12px;flex-wrap:wrap;align-items:center}
+.err{color:var(--er);font-size:13px;margin-top:8px}
+.li{display:flex;justify-content:space-between;gap:8px;padding:10px 0;border-bottom:1px solid var(--bd);cursor:pointer}
+.mu{color:var(--mu);font-size:13px}
+svg text{font-family:Georgia,serif}
+[hidden]{display:none!important}
+</style></head><body>
+<header><h1>Silsilah keluarga</h1><div class="row" style="margin:0"><button id="bm">Menu</button><button id="bl">Daftar</button><button id="ba" class="pr">+ Tambah</button></div></header>
+<div id="mn" class="row" hidden style="margin:0;padding:8px 14px;border-bottom:1px solid var(--bd)"><button id="bs">Sinkron OneDrive</button><button id="be">Ekspor cadangan</button><button id="bi">Impor cadangan</button><button id="bd">Gabung data ganda</button></div>
+<input id="backupFile" type="file" accept=".json,application/json" hidden>
+<main id="app"></main>
+<footer style="max-width:760px;margin:0 auto;padding:0 14px 18px;color:var(--mu);font-size:12px">Tips keamanan: ekspor cadangan secara berkala dan simpan di tempat aman. Cadangan dienkripsi dengan sandi sinkron; bila Anda memilih tanpa sandi, jangan bagikan berkasnya.</footer>
+<script>
+const KEY='silsilah-v1',$=i=>document.getElementById(i),app=$('app');
+let P=[],C=null,view='tree',edit=null,Z=1,AD=2,DD=2;
+const okId=x=>typeof x==='string'&&/^[\w-]{1,64}$/.test(x),okD=x=>typeof x==='string'&&/^\d{4}(-\d{2}-\d{2})?$/.test(x);
+function clean(a){if(!Array.isArray(a))return[];const seen=new Set(),out=[];
+ a.forEach(p=>{if(!p||typeof p!=='object'||!okId(p.id)||typeof p.name!=='string'||!p.name.trim()||seen.has(p.id))return;seen.add(p.id);
+  const r={id:p.id,name:p.name.slice(0,120),fatherId:okId(p.fatherId)?p.fatherId:'',motherId:okId(p.motherId)?p.motherId:'',birth:okD(p.birth)?p.birth:'',death:okD(p.death)?p.death:'',deleted:p.deleted===true,updated:Number.isFinite(p.updated)?p.updated:0,spouseIds:Array.isArray(p.spouseIds)?p.spouseIds.filter(okId):[]};
+  if(p.sx==='L'||p.sx==='P')r.sx=p.sx;out.push(r)});return out}
+let RAW='[]';try{RAW=localStorage.getItem(KEY)||'[]'}catch(e){}
+try{const j=JSON.parse(RAW);P=clean(j);if(!Array.isArray(j)||j.length!==P.length)localStorage.setItem(KEY+'-rusak',RAW)}catch(e){P=[];try{localStorage.setItem(KEY+'-rusak',RAW)}catch(_){}}
+const maxU=()=>P.reduce((m,p)=>Math.max(m,p.updated||0),0),tick=()=>Math.max(Date.now(),maxU()+1);
+try{navigator.storage&&navigator.storage.persist&&navigator.storage.persist()}catch(e){}
+const save=()=>{try{localStorage.setItem(KEY,JSON.stringify(P));return true}catch(e){return false}};
+const live=()=>P.filter(p=>!p.deleted),by=id=>live().find(p=>p.id===id);
+const uid=()=>crypto.randomUUID?crypto.randomUUID():'id'+Date.now().toString(36)+Math.random().toString(36).slice(2,8);
+const esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const yr=d=>d?d.slice(0,4):'';
+const span=p=>{const b=yr(p.birth),d=yr(p.death);return d?(b||'?')+' – '+d:b};
+const fmt=d=>d?d.split('-').reverse().join('-'):'-';
+const pd=s=>{s=s.trim();if(!s)return'';const a=/^\d{8}$/.test(s)?[+s.slice(0,2),+s.slice(2,4),+s.slice(4)]:s.split(/[\s\-\/.,]+/).filter(Boolean).map(Number);if(a.some(isNaN))return null;if(a.length===1&&a[0]>=1000&&a[0]<=2999)return String(a[0]);if(a.length!==3)return null;const[d,m,y]=a;if(y<1000||y>2999||m<1||m>12||d<1||d>31)return null;if(new Date(y,m-1,d).getMonth()!==m-1)return null;return y+'-'+String(m).padStart(2,'0')+'-'+String(d).padStart(2,'0')};
+const lab=x=>x.name+' ('+(span(x)||'?')+')';
+const res=(txt,self)=>{const t=txt.trim(),q=t.toLowerCase();if(!q)return{id:''};const L=live().filter(x=>x.id!==self);let m=L.filter(x=>x.name.toLowerCase()===q);if(!m.length)m=L.filter(x=>lab(x).toLowerCase()===q);if(m.length>1)return{err:'Ada lebih dari satu orang bernama itu. Pilih salah satu saran yang disertai tahun.'};return m.length?{id:m[0].id}:{name:t}};
+const short=n=>n.length>13?n.slice(0,12)+'…':n;
+const cmp=(a,b)=>(a.birth||'9999').localeCompare(b.birth||'9999')||a.name.localeCompare(b.name);
+const kids=id=>live().filter(p=>p.fatherId===id||p.motherId===id).sort(cmp);
+const sibs=p=>live().filter(q=>q.id!==p.id&&((p.fatherId&&q.fatherId===p.fatherId)||(p.motherId&&q.motherId===p.motherId)));
+const spouses=p=>live().filter(q=>q.id!==p.id&&((q.spouseIds||[]).includes(p.id)||(p.spouseIds||[]).includes(q.id)));
+function setSp(p,ids){ids=[...new Set(ids)].filter(i=>i!==p.id);const now=tick();
+ spouses(p).forEach(q=>{if(!ids.includes(q.id)){q.spouseIds=(q.spouseIds||[]).filter(x=>x!==p.id);q.updated=now}});
+ ids.forEach(i=>{const q=P.find(x=>x.id===i);if(q&&!(q.spouseIds||[]).includes(p.id)){q.spouseIds=[...(q.spouseIds||[]),p.id];q.updated=now}});
+ p.spouseIds=ids;p.updated=now}
+function withSp(list){const out=[],seen=new Set();list.forEach(p=>{if(!seen.has(p.id)){out.push(p);seen.add(p.id)}spouses(p).forEach(s=>{if(!seen.has(s.id)){out.push(s);seen.add(s.id)}})});return out}
+$('bl').onclick=()=>{view=view==='tree'?'list':'tree';edit=null;render()};
+$('bs').onclick=()=>{view='sync';edit=null;render()};
+$('bm').onclick=()=>{$('mn').hidden=!$('mn').hidden};$('bd').onclick=()=>{view='dup';edit=null;render()};$('mn').addEventListener('click',()=>{$('mn').hidden=true});
+$('ba').onclick=()=>{edit=null;view='form';render()};
+function dl(name,text){const url=URL.createObjectURL(new Blob([text],{type:'application/json'})),a=document.createElement('a');a.href=url;a.download=name;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),1500)}
+function fail(e){app.innerHTML='<div class="card"><h2>Terjadi kesalahan</h2><div class="err">'+esc((e&&e.message)||e||'tidak diketahui')+'</div><div class="mu" style="margin-top:8px">Data Anda tidak dihapus. Simpan dulu salinan data mentah, lalu muat ulang.</div><div class="row"><button class="pr" id="rw">Ekspor data mentah</button><button id="rl">Muat ulang</button></div></div>';
+ $('rw').onclick=()=>{let t='[]';try{t=localStorage.getItem(KEY)||JSON.stringify(P)}catch(x){t=JSON.stringify(P)}dl('silsilah-data-mentah.json',t)};$('rl').onclick=()=>location.reload()}
+window.addEventListener('error',ev=>fail(ev.error||ev.message));window.addEventListener('unhandledrejection',ev=>fail(ev.reason));
+function render(){try{render0()}catch(e){fail(e)}}
+function render0(){$('bl').textContent=view==='tree'?'Daftar':'Pohon';view==='form'?form():view==='list'?list():view==='sync'?syncView():view==='dup'?dupView():tree()}
+async function exportBackup(){
+ const pw=PW||prompt('Sandi untuk mengenkripsi cadangan (kosongkan = TANPA enkripsi, tidak disarankan):')||'';
+ const payload={format:'silsilah-keluarga-backup',version:1,exportedAt:new Date().toISOString(),people:P},d=new Date().toISOString().slice(0,10);
+ if(pw){const e=JSON.parse(await enc(payload,pw,crypto.getRandomValues(new Uint8Array(16))));dl('silsilah-keluarga-'+d+'.enc.json',JSON.stringify({format:'silsilah-keluarga-enc',...e}))}
+ else dl('silsilah-keluarga-'+d+'.json',JSON.stringify(payload,null,2));
+}
+function importBackup(file){
+ const reader=new FileReader();reader.onload=async()=>{try{
+  let raw=JSON.parse(String(reader.result||''));
+  if(raw&&raw.format==='silsilah-keluarga-enc'){const pw=PW||prompt('Sandi cadangan:')||'';try{raw=(await dec(JSON.stringify(raw),pw)).obj}catch(x){alert('Sandi salah atau berkas rusak.');return}}
+  const arr=Array.isArray(raw)?raw:(raw&&raw.format==='silsilah-keluarga-backup'&&Array.isArray(raw.people)?raw.people:null);
+  if(!arr||arr.some(p=>!p||typeof p!=='object'||typeof p.id!=='string'||typeof p.name!=='string')){alert('Berkas cadangan tidak dikenali atau strukturnya tidak valid.');return;}
+  const ids=new Set();for(const p of arr){if(ids.has(p.id)){alert('Berkas memiliki ID orang yang ganda. Impor dibatalkan.');return;}ids.add(p.id);}
+  const cl=clean(arr);if(!cl.length){alert('Tidak ada data valid di berkas ini.');return}
+  if(confirm('Berkas berisi '+cl.length+' orang. OK = GABUNGKAN dengan data di HP ini (aman). Batal = pilihan lain.'))merge(cl);
+  else{if(!confirm('GANTI seluruh data di HP ini dengan isi berkas? Ekspor cadangan data saat ini dahulu.'))return;P=cl}
+  C=null;edit=null;view='tree';Z=1;if(!save()){alert('Gagal menyimpan data di browser. Penyimpanan mungkin penuh.');return;}render();alert('Impor selesai: '+live().length+' orang dimuat.');
+ }catch(e){alert('Tidak dapat membaca berkas JSON: '+e.message);}};reader.onerror=()=>alert('Berkas tidak dapat dibaca.');reader.readAsText(file);
+}
+$('be').onclick=()=>exportBackup().catch(e=>alert('Ekspor gagal: '+e.message));$('bi').onclick=()=>{$('backupFile').value='';$('backupFile').click()};$('backupFile').onchange=()=>{const f=$('backupFile').files&&$('backupFile').files[0];if(f)importBackup(f)};
+
+function tree(){
+ const c=by(C)||live().sort(cmp)[0];
+ if(!c){app.innerHTML='<div class="card">Belum ada data. Ketuk "+ Tambah" untuk memasukkan orang pertama.</div>';return}
+ C=c.id;
+ const f=by(c.fatherId),m=by(c.motherId);
+ const up=[],dn=[];let cur=[c,...spouses(c)];
+ for(let i=0;i<AD;i++){const nx=[];cur.forEach(p=>[by(p.fatherId),by(p.motherId)].forEach(q=>{if(q&&!nx.includes(q))nx.push(q)}));if(!nx.length)break;up.unshift(nx);cur=nx}
+ const mid=[c,...sibs(c)].sort(cmp),ch=kids(c.id);cur=ch;if(ch.length)dn.push(ch);
+ for(let i=1;i<DD&&cur.length;i++){const nx=[];cur.forEach(p=>kids(p.id).forEach(q=>{if(!nx.includes(q))nx.push(q)}));if(!nx.length)break;dn.push(nx);cur=nx}
+ const rows=[...up,mid,...dn].map(r=>withSp(r)).filter(r=>r.length);
+ const W=112,H=46,G=12,rw=r=>r.length*(W+G)-G;
+ const sw=Math.max(...rows.map(rw))+24,sh=rows.length*(H+36)-36+24,pos={};
+ rows.forEach((r,ri)=>{const x0=(sw-rw(r))/2;r.forEach((n,i)=>{pos[n.id]={x:x0+i*(W+G),y:12+ri*(H+36),ri}})});
+ let s='';
+ rows.forEach((r,ri)=>{r.forEach((n,i)=>{const a=pos[n.id],nx=r[i+1];if(nx&&spouses(n).some(q=>q.id===nx.id)){const b=pos[nx.id];s+=`<path d="M${a.x+W} ${a.y+H/2}H${b.x}" stroke="var(--ac)" stroke-width="2"/>`}});
+  if(!ri)return;r.forEach(n=>{const a=pos[n.id],fa=pos[n.fatherId],mo=pos[n.motherId],ax=a.x+W/2,ok=p=>p&&p.ri===ri-1;
+   if(ok(fa)&&ok(mo)&&Math.abs(fa.x-mo.x)===W+G)s+=`<path d="M${ax} ${a.y}V${a.y-18}H${(fa.x+mo.x)/2+W/2}V${fa.y+H/2}" fill="none" stroke="var(--mu)" stroke-width="1"/>`;
+   else[fa,mo].forEach(b=>{if(ok(b))s+=`<path d="M${ax} ${a.y}V${a.y-18}H${b.x+W/2}V${b.y+H}" fill="none" stroke="var(--mu)" stroke-width="1"/>`})})});
+ rows.forEach(r=>r.forEach(n=>{const a=pos[n.id],ce=n.id===c.id;s+=`<g data-id="${esc(n.id)}" style="cursor:pointer" opacity="${n.death?0.65:1}"><rect x="${a.x}" y="${a.y}" width="${W}" height="${H}" rx="6" fill="${ce?'var(--acbg)':'var(--bg)'}" stroke="${ce?'var(--ac)':'var(--bd)'}" stroke-width="${ce?2:1}"/><text x="${a.x+W/2}" y="${a.y+19}" text-anchor="middle" font-size="13" font-weight="500" fill="var(--tx)">${esc(short(n.name))}</text><text x="${a.x+W/2}" y="${a.y+35}" text-anchor="middle" font-size="12" fill="var(--mu)">${esc(span(n))}</text></g>`}));
+ app.innerHTML=`<div class="row" style="margin:0 0 8px"><button data-z="-">−</button><button data-z="+">+</button><span class="mu">Geser dan perbesar gambar. Ketuk kotak untuk menjadikannya pusat.</span></div>
+ <div class="row" style="margin:0 0 8px"><span class="mu">Ke atas: ${AD}</span><button data-gen="A-">−</button><button data-gen="A+">+</button><span class="mu">Ke bawah: ${DD}</span><button data-gen="D-">−</button><button data-gen="D+">+</button></div>
+ <div id="sc"><svg width="${sw*Z}" height="${sh*Z}" viewBox="0 0 ${sw} ${sh}">${s}</svg></div>
+ <div class="card"><h2>${esc(c.name)}</h2><div class="mu" style="margin-top:6px">Lahir: ${esc(fmt(c.birth))}${c.death?' · Meninggal: '+esc(fmt(c.death)):''}</div>
+ <div class="mu">Pasangan: ${spouses(c).map(x=>esc(x.name)).join(', ')||'-'}</div>
+ <div class="mu">Ayah: ${f?esc(f.name):'-'} · Ibu: ${m?esc(m.name):'-'} · Anak: ${ch.length} · Saudara: ${sibs(c).length}</div>
+ <div class="row"><button id="ed">Sunting</button></div></div>`;
+ app.querySelectorAll('g[data-id]').forEach(g=>g.onclick=()=>{C=g.dataset.id;render()});
+ app.querySelectorAll('[data-z]').forEach(b=>b.onclick=()=>{Z=Math.min(2,Math.max(0.5,Z+(b.dataset.z==='+'?0.25:-0.25)));render()});
+ app.querySelectorAll('[data-gen]').forEach(b=>b.onclick=()=>{const k=b.dataset.gen;if(k==='A+')AD=Math.min(5,AD+1);if(k==='A-')AD=Math.max(1,AD-1);if(k==='D+')DD=Math.min(5,DD+1);if(k==='D-')DD=Math.max(1,DD-1);render()});
+ $('ed').onclick=()=>{edit=c.id;view='form';render()};
+ const sc=$('sc');sc.scrollLeft=(sc.scrollWidth-sc.clientWidth)/2;
+}
+function dupGroups(){const g={};live().forEach(p=>{const k=p.name.toLowerCase().replace(/\s+/g,' ').trim();(g[k]=g[k]||[]).push(p)});return Object.values(g).filter(a=>a.length>1)}
+function mergePeople(keepId,dropId){const k=P.find(x=>x.id===keepId),d=P.find(x=>x.id===dropId),now=tick();if(!k||!d||k===d)return;
+ ['fatherId','motherId','birth','death','sx'].forEach(f=>{if(!k[f]&&d[f])k[f]=d[f]});
+ P.forEach(q=>{if(q===k||q===d)return;let ch=false;
+  if(q.fatherId===dropId){q.fatherId=keepId;ch=true}if(q.motherId===dropId){q.motherId=keepId;ch=true}
+  if((q.spouseIds||[]).includes(dropId)){q.spouseIds=[...new Set(q.spouseIds.map(x=>x===dropId?keepId:x))];ch=true}
+  if(ch)q.updated=now});
+ k.spouseIds=[...new Set([...(k.spouseIds||[]),...(d.spouseIds||[])])].filter(x=>x!==keepId&&x!==dropId);
+ if(k.fatherId===dropId||k.fatherId===keepId)k.fatherId='';if(k.motherId===dropId||k.motherId===keepId)k.motherId='';
+ d.deleted=true;d.updated=now;k.updated=now;if(C===dropId)C=keepId}
+function dupView(){const G=dupGroups();
+ app.innerHTML=G.length?G.map((a,gi)=>`<div class="card" style="margin-top:0;margin-bottom:12px"><h2>${esc(a[0].name)}</h2><div class="mu">Pilih data yang dipertahankan.</div>`+a.map((p,i)=>`<label style="display:flex;gap:8px;align-items:center;color:var(--tx)"><input type="radio" name="k${gi}" value="${esc(p.id)}" style="width:auto"${i?'':' checked'}> ${esc(span(p)||'tanpa tahun')} · ayah: ${esc((by(p.fatherId)||{}).name||'-')} · anak: ${kids(p.id).length}</label>`).join('')+`<div class="row"><button class="pr" data-m="${gi}">Gabungkan</button></div></div>`).join(''):'<div class="card" style="margin-top:0">Tidak ada nama ganda.</div>';
+ app.querySelectorAll('[data-m]').forEach(b=>b.onclick=()=>{const gi=+b.dataset.m,a=G[gi],keep=app.querySelector('input[name=k'+gi+']:checked').value;
+  if(!confirm('Gabungkan '+a.length+' data bernama "'+a[0].name+'" menjadi satu? Cadangkan dulu; pembatalan hanya lewat impor cadangan.'))return;
+  a.forEach(p=>{if(p.id!==keep)mergePeople(keep,p.id)});save();render()})}
+function list(){
+ app.innerHTML='<input id="q" placeholder="Cari nama…" autocomplete="off"><div id="ls"></div>';
+ const draw=()=>{const t=$('q').value.toLowerCase(),a=live().filter(p=>p.name.toLowerCase().includes(t)).sort((x,y)=>x.name.localeCompare(y.name));
+  $('ls').innerHTML=a.length?a.map(p=>`<div class="li" data-id="${esc(p.id)}"><span>${esc(p.name)}</span><span class="mu">${esc(span(p))}</span></div>`).join(''):'<p class="mu">Tidak ada data.</p>';
+  $('ls').querySelectorAll('.li').forEach(r=>r.onclick=()=>{C=r.dataset.id;view='tree';render()})};
+ $('q').oninput=draw;draw();
+}
+function form(){
+ const p=(edit&&P.find(x=>x.id===edit))||{name:'',fatherId:'',motherId:'',birth:'',death:''};
+ const L=live().filter(x=>x.id!==p.id).sort((a,b)=>a.name.localeCompare(b.name)),dup=n=>L.filter(x=>x.name===n).length>1,dl=L.map(x=>`<option value="${esc(dup(x.name)?lab(x):x.name)}"></option>`).join(''),nm=id=>{const x=by(id);return x?esc(x.name):''},sp=p.id?spouses(p):[],role=q=>q.sx||(p.sx==='L'?'P':p.sx==='P'?'L':'P'),sv=r=>sp.filter(q=>role(q)===r).map(q=>esc(q.name)).join('; ');
+ app.innerHTML=`<div class="card" style="margin-top:0"><h2>${edit?'Sunting orang':'Tambah orang'}</h2>
+ <label>Nama</label><input id="fn" value="${esc(p.name)}" autocomplete="off">
+ <label>Nama ayah (ketik, atau pilih dari saran)</label><input id="ff" list="dl" autocomplete="off" value="${nm(p.fatherId)}"><datalist id="dl">${dl}</datalist>
+ <label>Nama ibu (ketik, atau pilih dari saran)</label><input id="fm" list="dl" autocomplete="off" value="${nm(p.motherId)}"><label>Suami (ketik nama; pisahkan dengan titik koma jika lebih dari satu)</label><input id="fp1" list="dl" autocomplete="off" value="${sv('L')}"><label>Istri (ketik nama; pisahkan dengan titik koma jika lebih dari satu)</label><input id="fp2" list="dl" autocomplete="off" value="${sv('P')}"><div class="mu" style="margin-top:6px">Jika nama belum ada di daftar, otomatis ditambahkan sebagai orang baru.</div>
+ <label>Tanggal lahir (ketik tanggal bulan tahun, boleh tahun saja)</label><input id="fb" inputmode="numeric" placeholder="contoh: 1 8 1961" autocomplete="off" value="${p.birth?esc(fmt(p.birth)):''}">
+ <label>Tanggal meninggal (kosongkan jika masih ada)</label><input id="fd" inputmode="numeric" placeholder="contoh: 5 3 2015" autocomplete="off" value="${p.death?esc(fmt(p.death)):''}">
+ <div class="err" id="fe"></div>
+ <div class="row"><button class="pr" id="fs">Simpan</button><button id="fc">Batal</button>${edit?'<button id="fx">Hapus</button>':''}</div></div>`;
+ $('fc').onclick=()=>{view='tree';edit=null;render()};
+ $('fs').onclick=()=>{const name=$('fn').value.trim(),b=pd($('fb').value),d=pd($('fd').value),e=$('fe');
+  if(!name){e.textContent='Nama wajib diisi.';return}
+  if(b===null||d===null){e.textContent='Tanggal tidak dikenali. Ketik misalnya 1 8 1961 (tanggal bulan tahun) atau tahunnya saja.';return}
+  if(b&&d&&d<b){e.textContent='Tanggal meninggal tidak boleh sebelum tanggal lahir.';return}
+  const fr=res($('ff').value,edit),mr=res($('fm').value,edit);const pl=t=>t.split(';').filter(x=>x.trim()).map(x=>res(x,edit)),H0=pl($('fp1').value),W0=pl($('fp2').value),er=[fr,mr,...H0,...W0].map(r=>r.err).find(Boolean);if(er){e.textContent=er;return}
+  if(edit&&(fr.id===edit||mr.id===edit)){e.textContent='Seseorang tidak dapat menjadi ayah atau ibu dirinya sendiri.';return}
+  if(fr.id&&mr.id&&fr.id===mr.id){e.textContent='Ayah dan ibu tidak boleh menunjuk orang yang sama.';return}
+  const creates=[fr,mr,...H0,...W0].filter(r=>r.name);if(creates.length&&!confirm('Ada '+creates.length+' nama yang belum ditemukan. Nama itu akan dibuat sebagai orang baru. Periksa ejaan agar tidak membuat data ganda. Lanjutkan?'))return;
+  const wouldCycle=(childId,parentId)=>{const seen=new Set(),stack=[parentId];while(stack.length){const id=stack.pop();if(id===childId)return true;if(!id||seen.has(id))continue;seen.add(id);const q=P.find(x=>x.id===id);if(q){if(q.fatherId)stack.push(q.fatherId);if(q.motherId)stack.push(q.motherId)}}return false};
+  if(edit&&((fr.id&&wouldCycle(edit,fr.id))||(mr.id&&wouldCycle(edit,mr.id)))){e.textContent='Hubungan ini akan membentuk lingkaran keturunan. Periksa kembali ayah dan ibu.';return}
+  const mk=r=>{if(r.name){const n={id:uid(),name:r.name,fatherId:'',motherId:'',birth:'',death:'',deleted:false,updated:tick()};P.push(n);return n.id}return r.id};
+  const o={name,fatherId:mk(fr),motherId:mk(mr),birth:b,death:d,updated:tick()};
+  let tp;if(edit){tp=P.find(x=>x.id===edit);Object.assign(tp,o)}else{tp={id:uid(),deleted:false,spouseIds:[],...o};P.push(tp);C=tp.id}
+  const H=H0.map(r=>mk(r)).filter(Boolean),W=W0.map(r=>mk(r)).filter(Boolean),now=tick();
+  H.forEach(i=>{const q=P.find(x=>x.id===i);if(q){q.sx='L';q.updated=now}});W.forEach(i=>{const q=P.find(x=>x.id===i);if(q){q.sx='P';q.updated=now}});
+  if(H.length&&!W.length)tp.sx='P';else if(W.length&&!H.length)tp.sx='L';
+  setSp(tp,[...H,...W]);
+  if(!save()){e.textContent='Gagal menyimpan di HP. Penyimpanan browser mungkin penuh atau dibatasi. Ekspor data bila masih memungkinkan.';return}view='tree';edit=null;render()};
+ if(edit){const x=$('fx');x.onclick=()=>{if(x.dataset.s){const q=P.find(z=>z.id===edit);q.deleted=true;q.updated=tick();save();if(C===edit)C=null;view='tree';edit=null;render()}else{x.dataset.s=1;x.textContent='Yakin hapus?'}}}
+}
+render();
+const CID='ISI_CLIENT_ID_DI_SINI',FN='silsilah.enc',RU=location.origin+location.pathname,AU='https://login.microsoftonline.com/common/oauth2/v2.0/',SC='Files.ReadWrite.AppFolder',GR='https://graph.microsoft.com/v1.0/me/drive/special/approot';
+let TK=null,PW='';try{PW=sessionStorage.getItem('ms-pw')||localStorage.getItem('silsilah-pw')||'';if(PW){sessionStorage.setItem('ms-pw',PW);localStorage.removeItem('silsilah-pw')}const t=JSON.parse(sessionStorage.getItem('ms-tk')||'null');if(t&&t.exp>Date.now())TK=t.t}catch(e){}
+const b64=u=>{let s='';u.forEach(x=>s+=String.fromCharCode(x));return btoa(s)},ub=s=>Uint8Array.from(atob(s),c=>c.charCodeAt(0));
+async function key(pw,salt,it){const k=await crypto.subtle.importKey('raw',new TextEncoder().encode(pw),'PBKDF2',false,['deriveKey']);return crypto.subtle.deriveKey({name:'PBKDF2',salt,iterations:it||600000,hash:'SHA-256'},k,{name:'AES-GCM',length:256},false,['encrypt','decrypt'])}
+async function enc(obj,pw,salt){const iv=crypto.getRandomValues(new Uint8Array(12)),k=await key(pw,salt),c=await crypto.subtle.encrypt({name:'AES-GCM',iv},k,new TextEncoder().encode(JSON.stringify(obj)));return JSON.stringify({v:1,it:600000,salt:b64(salt),iv:b64(iv),data:b64(new Uint8Array(c))})}
+async function dec(txt,pw){const j=JSON.parse(txt),salt=ub(j.salt),k=await key(pw,salt,j.it||200000),p=await crypto.subtle.decrypt({name:'AES-GCM',iv:ub(j.iv)},k,ub(j.data));return{obj:JSON.parse(new TextDecoder().decode(p)),salt}}
+function merge(a){a=clean(a);const m=new Map(P.map(p=>[p.id,p]));a.forEach(r=>{const l=m.get(r.id);if(!l||(r.updated||0)>(l.updated||0))m.set(r.id,r)});P=[...m.values()]}
+const b64u=u=>b64(u).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'');
+async function login(){if(CID.startsWith('ISI_'))throw new Error('Client ID Microsoft belum diisi di berkas ini (variabel CID).');const v=b64u(crypto.getRandomValues(new Uint8Array(32))),ch=b64u(new Uint8Array(await crypto.subtle.digest('SHA-256',new TextEncoder().encode(v))));const stt=b64u(crypto.getRandomValues(new Uint8Array(16)));sessionStorage.setItem('ms-st',stt);sessionStorage.setItem('ms-v',v);sessionStorage.setItem('ms-pw',PW);location.href=AU+'authorize?'+new URLSearchParams({client_id:CID,response_type:'code',redirect_uri:RU,response_mode:'query',state:stt,scope:SC,code_challenge:ch,code_challenge_method:'S256'})}
+async function back(){const q=new URLSearchParams(location.search),c=q.get('code'),er=q.get('error');if(!c&&!er)return false;history.replaceState(null,'',RU);if(c&&q.get('state')!==sessionStorage.getItem('ms-st'))throw new Error('Respons login tidak cocok. Coba lagi.');if(er)throw new Error(q.get('error_description')||er);const r=await fetch(AU+'token',{method:'POST',body:new URLSearchParams({client_id:CID,grant_type:'authorization_code',code:c,redirect_uri:RU,code_verifier:sessionStorage.getItem('ms-v')||'',scope:SC})}),j=await r.json();if(!j.access_token)throw new Error(j.error_description||'Login gagal');TK=j.access_token;sessionStorage.setItem('ms-tk',JSON.stringify({t:TK,exp:Date.now()+(j.expires_in-60)*1000}));return true}
+const gx=async(u,o={})=>{const r=await fetch(u,{...o,headers:{...(o.headers||{}),Authorization:'Bearer '+TK}});if(r.status===401){TK=null;sessionStorage.removeItem('ms-tk');throw new Error('Sesi habis, ketuk Sinkron lagi.')}return r};
+async function sync(st){
+ if(!PW)throw new Error('Isi sandi enkripsi dulu.');
+ if(!TK){await login();return false}
+ for(let i=0;i<3;i++){
+  st('Membaca OneDrive…');
+  let et=null,salt=crypto.getRandomValues(new Uint8Array(16));
+  const m=await gx(GR+':/'+FN+'?select=eTag');
+  if(m.ok){et=(await m.json()).eTag;const t=await(await gx(GR+':/'+FN+':/content')).text();try{const d=await dec(t,PW);merge(d.obj);salt=d.salt}catch(e){throw new Error('Sandi salah atau berkas rusak.')}}
+  else if(m.status!==404)throw new Error('OneDrive error '+m.status);
+  save();st('Mengunggah…');
+  const body=await enc(P,PW,salt),w=await gx(GR+':/'+FN+':/content'+(et?'':'?@microsoft.graph.conflictBehavior=fail'),{method:'PUT',headers:{'Content-Type':'text/plain',...(et?{'If-Match':et}:{})},body});
+  if(w.status===412||w.status===409)continue;
+  if(!w.ok)throw new Error('Unggah gagal '+w.status);
+  return true}
+ throw new Error('Berkas terus berubah, coba lagi.')}
+function syncView(){
+ app.innerHTML=`<div class="card" style="margin-top:0"><h2>Sinkron OneDrive</h2><label>Sandi enkripsi (sama di semua HP)</label><input id="sp" type="password" autocomplete="off" value="${esc(PW)}"><label style="display:flex;gap:8px;align-items:center"><input id="sr" type="checkbox" style="width:auto"${sessionStorage.getItem('ms-pw')?' checked':''}> Simpan sandi selama sesi browser ini saja</label><div class="mu" style="margin-top:8px">Catatan: sinkronisasi belum aktif sebelum Client ID Microsoft diisi. File ini masih memakai nilai contoh ISI_CLIENT_ID_DI_SINI.</div><div class="row"><button class="pr" id="sg">Sinkron sekarang</button></div><div class="mu" id="ss" style="margin-top:10px"></div></div>`;
+ const st=t=>{$('ss').textContent=t};
+ $('sg').onclick=async()=>{PW=$('sp').value;try{if($('sr').checked)sessionStorage.setItem('ms-pw',PW);else sessionStorage.removeItem('ms-pw');localStorage.removeItem('silsilah-pw')}catch(e){}
+  $('sg').disabled=true;try{st(await sync(st)?'Selesai. '+live().length+' orang tersinkron.':'Mengalihkan ke Microsoft…')}catch(e){st(e.message)}$('sg').disabled=false}}
+if('serviceWorker' in navigator&&location.protocol==='https:')navigator.serviceWorker.register('sw.js').catch(()=>{});
+back().then(ok=>{if(ok){view='sync';render();$('sg').click()}}).catch(e=>{view='sync';render();$('ss').textContent=e.message});
+</script></body></html>
