@@ -31,7 +31,7 @@ svg text{font-family:Georgia,serif}
 <div id="mn" class="row" hidden style="margin:0;padding:8px 14px;border-bottom:1px solid var(--bd)"><button id="bs">Sinkron Google Drive</button><button id="be">Ekspor cadangan</button><button id="bi">Impor cadangan</button><button id="bd">Gabung data ganda</button></div>
 <input id="backupFile" type="file" accept=".json,application/json" hidden>
 <main id="app"></main>
-<footer style="max-width:760px;margin:0 auto;padding:0 14px 18px;color:var(--mu);font-size:12px">Tips keamanan: ekspor cadangan secara berkala dan simpan di tempat aman. Cadangan dienkripsi dengan sandi sinkron; bila Anda memilih tanpa sandi, jangan bagikan berkasnya. Versi 4.1.</footer>
+<footer style="max-width:760px;margin:0 auto;padding:0 14px 18px;color:var(--mu);font-size:12px">Tips keamanan: ekspor cadangan secara berkala. File di Google Drive dienkripsi dengan sandi sinkron Anda.</footer>
 <script>
 const KEY='silsilah-v1',$=i=>document.getElementById(i),app=$('app');
 let P=[],C=null,view='tree',edit=null,Z=1,AD=2,DD=2;
@@ -182,33 +182,95 @@ function form(){
  if(edit){const x=$('fx');x.onclick=()=>{if(x.dataset.s){const q=P.find(z=>z.id===edit);q.deleted=true;q.updated=tick();save();if(C===edit)C=null;view='tree';edit=null;render()}else{x.dataset.s=1;x.textContent='Yakin hapus?'}}}
 }
 render();
+
+// ==========================================
+// GOOGLE APPS SCRIPT SYNC
+// ==========================================
+let PW='', SYNC_URL='', SYNC_SECRET='';
+try{
+  PW=localStorage.getItem('g-pw')||sessionStorage.getItem('g-pw')||'';
+  SYNC_URL=localStorage.getItem('g-sync-url')||'';
+  SYNC_SECRET=localStorage.getItem('g-sync-secret')||'';
+}catch(e){}
+
 const b64=u=>{let s='';u.forEach(x=>s+=String.fromCharCode(x));return btoa(s)},ub=s=>Uint8Array.from(atob(s),c=>c.charCodeAt(0));
 async function key(pw,salt,it){const k=await crypto.subtle.importKey('raw',new TextEncoder().encode(pw),'PBKDF2',false,['deriveKey']);return crypto.subtle.deriveKey({name:'PBKDF2',salt,iterations:it||600000,hash:'SHA-256'},k,{name:'AES-GCM',length:256},false,['encrypt','decrypt'])}
 async function enc(obj,pw,salt){const iv=crypto.getRandomValues(new Uint8Array(12)),k=await key(pw,salt),c=await crypto.subtle.encrypt({name:'AES-GCM',iv},k,new TextEncoder().encode(JSON.stringify(obj)));return JSON.stringify({v:1,it:600000,salt:b64(salt),iv:b64(iv),data:b64(new Uint8Array(c))})}
 async function dec(txt,pw){const j=JSON.parse(txt),salt=ub(j.salt),k=await key(pw,salt,j.it||200000),p=await crypto.subtle.decrypt({name:'AES-GCM',iv:ub(j.iv)},k,ub(j.data));return{obj:JSON.parse(new TextDecoder().decode(p)),salt}}
 function merge(a){a=clean(a);const m=new Map(P.map(p=>[p.id,p]));a.forEach(r=>{const l=m.get(r.id);if(!l||(r.updated||0)>(l.updated||0))m.set(r.id,r)});P=[...m.values()]}
-const GAS_URL='ISI_URL_APPS_SCRIPT_DI_SINI';
-let PW='';try{PW=localStorage.getItem('silsilah-pw')||sessionStorage.getItem('silsilah-pw')||''}catch(e){}
-async function authTok(pw){const k=await crypto.subtle.importKey('raw',new TextEncoder().encode(pw),'PBKDF2',false,['deriveBits']),b=await crypto.subtle.deriveBits({name:'PBKDF2',salt:new TextEncoder().encode('silsilah-auth-v1'),iterations:100000,hash:'SHA-256'},k,256);return[...new Uint8Array(b)].map(x=>x.toString(16).padStart(2,'0')).join('')}
-async function gas(body){const r=await fetch(GAS_URL,{method:'POST',body:JSON.stringify(body)});if(!r.ok)throw new Error('Server Google '+r.status);const j=await r.json();if(j.error)throw new Error(j.error);return j}
+
+async function syncApi(action, payload) {
+  const res = await fetch(SYNC_URL, {
+    method: 'POST',
+    headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+    body: JSON.stringify({ action, secret: SYNC_SECRET, ...payload })
+  });
+  const data = await res.json();
+  if (data.error) throw new Error(data.error);
+  return data;
+}
+
 async function sync(st){
- if(!PW)throw new Error('Isi sandi enkripsi dulu.');
- if(GAS_URL.startsWith('ISI_'))throw new Error('Alamat Apps Script belum diisi di berkas ini (variabel GAS_URL).');
- const tk=await authTok(PW);
- for(let i=0;i<3;i++){
-  st('Membaca Google Drive…');
-  const g=await gas({action:'get',token:tk});let salt=crypto.getRandomValues(new Uint8Array(16));
-  if(g.data){try{const d=await dec(g.data,PW);merge(d.obj);salt=d.salt}catch(e){throw new Error('Sandi salah atau berkas rusak.')}}
-  save();st('Menyimpan ke Google Drive…');
-  const w=await gas({action:'put',token:tk,data:await enc(P,PW,salt),base:g.version||''});
-  if(w.conflict)continue;
-  return true}
- throw new Error('Data terus berubah, coba lagi.')}
-const lp=()=>{try{return localStorage.getItem('silsilah-pw')}catch(e){return null}};
+  if(!PW) throw new Error('Isi sandi enkripsi dulu.');
+  if(!SYNC_URL || !SYNC_SECRET) throw new Error('URL Web App dan Secret Token belum diisi.');
+
+  for(let i=0;i<3;i++){
+    st('Mengunduh data dari Google Drive...');
+    let res = await syncApi('get');
+    let remoteData = res.data;
+    let version = res.version;
+
+    let salt = crypto.getRandomValues(new Uint8Array(16));
+    
+    if(remoteData){
+      try{
+        const d = await dec(remoteData, PW);
+        merge(d.obj);
+        salt = d.salt;
+      }catch(e){ throw new Error('Sandi salah atau file rusak.'); }
+    }
+
+    save(); st('Mengunggah pembaruan ke Google Drive...');
+    const body = await enc(P, PW, salt);
+    
+    res = await syncApi('save', { data: body, clientVersion: version });
+    
+    if(res.error === 'Conflict'){ continue; } // Jika bentrok, ulangi
+    if(res.success){ return true; }
+  }
+  throw new Error('File terus berubah (bentrok), coba klik sinkron lagi.');
+}
+
 function syncView(){
- app.innerHTML=`<div class="card" style="margin-top:0"><h2>Sinkron Google Drive</h2><label>Sandi enkripsi (sama di semua HP)</label><input id="sp" type="password" autocomplete="off" value="${esc(PW)}"><label style="display:flex;gap:8px;align-items:center"><input id="sr" type="checkbox" style="width:auto"${lp()?' checked':''}> Ingat sandi di HP ini</label><div class="row"><button class="pr" id="sg">Sinkron sekarang</button></div><div class="mu" id="ss" style="margin-top:10px"></div></div>`;
- const st=t=>{$('ss').textContent=t};
- $('sg').onclick=async()=>{PW=$('sp').value;try{if($('sr').checked)localStorage.setItem('silsilah-pw',PW);else localStorage.removeItem('silsilah-pw')}catch(e){}
-  $('sg').disabled=true;try{await sync(st);st('Selesai. '+live().length+' orang tersinkron.')}catch(e){st(e.message)}$('sg').disabled=false}}
-if('serviceWorker' in navigator&&location.protocol==='https:')navigator.serviceWorker.register('sw.js',{updateViaCache:'none'}).then(r=>r.update()).catch(()=>{});
+  app.innerHTML=`<div class="card" style="margin-top:0"><h2>Sinkron Google Drive</h2>
+  <label>Sandi Enkripsi (Sama untuk semua anggota)</label><input id="sp" type="password" autocomplete="off" value="${esc(PW)}">
+  <label>URL Web App Google Apps Script (Berakhiran /exec)</label><input id="su" value="${esc(SYNC_URL)}" placeholder="https://script.google.com/macros/s/.../exec">
+  <label>Secret Token (Sandi rahasia dari kode Apps Script)</label><input id="st" type="password" autocomplete="off" value="${esc(SYNC_SECRET)}">
+  <label style="display:flex;gap:8px;align-items:center"><input id="sr" type="checkbox" style="width:auto"${localStorage.getItem('g-pw')?' checked':''}> Ingat sandi di HP ini</label>
+  <div class="row"><button class="pr" id="sg">Sinkron Sekarang</button></div>
+  <div class="mu" id="ss" style="margin-top:10px"></div></div>`;
+  
+  const st=t=>{$('ss').textContent=t};
+  
+  $('sg').onclick=async()=>{
+    PW=$('sp').value;
+    SYNC_URL=$('su').value.trim();
+    SYNC_SECRET=$('st').value.trim();
+    try{
+      if($('sr').checked) localStorage.setItem('g-pw',PW);
+      else localStorage.removeItem('g-pw');
+      if(SYNC_URL) localStorage.setItem('g-sync-url',SYNC_URL);
+      if(SYNC_SECRET) localStorage.setItem('g-sync-secret',SYNC_SECRET);
+    }catch(e){}
+    
+    $('sg').disabled=true;
+    try{
+      const ok=await sync(st);
+      st(ok?'Selesai. '+live().length+' orang tersinkron.':'Gagal.');
+    }catch(e){ st(e.message); }
+    $('sg').disabled=false;
+  }
+}
+
+if('serviceWorker' in navigator&&location.protocol==='https:')navigator.serviceWorker.register('sw.js').catch(()=>{});
 </script></body></html>
