@@ -31,7 +31,7 @@ svg text{font-family:Georgia,serif}
 <div id="mn" class="row" hidden style="margin:0;padding:8px 14px;border-bottom:1px solid var(--bd)"><button id="bs">Sinkron Google Drive</button><button id="be">Ekspor cadangan</button><button id="bi">Impor cadangan</button><button id="bd">Gabung data ganda</button></div>
 <input id="backupFile" type="file" accept=".json,application/json" hidden>
 <main id="app"></main>
-<footer style="max-width:760px;margin:0 auto;padding:0 14px 18px;color:var(--mu);font-size:12px">Tips keamanan: ekspor cadangan secara berkala dan simpan di tempat aman. Cadangan dienkripsi dengan sandi sinkron; bila Anda memilih tanpa sandi, jangan bagikan berkasnya.</footer>
+<footer style="max-width:760px;margin:0 auto;padding:0 14px 18px;color:var(--mu);font-size:12px">Tips keamanan: ekspor cadangan secara berkala dan simpan di tempat aman. Cadangan dienkripsi dengan sandi sinkron; bila Anda memilih tanpa sandi, jangan bagikan berkasnya. Versi 4.1.</footer>
 <script>
 const KEY='silsilah-v1',$=i=>document.getElementById(i),app=$('app');
 let P=[],C=null,view='tree',edit=null,Z=1,AD=2,DD=2;
@@ -210,5 +210,5 @@ function syncView(){
  const st=t=>{$('ss').textContent=t};
  $('sg').onclick=async()=>{PW=$('sp').value;try{if($('sr').checked)localStorage.setItem('silsilah-pw',PW);else localStorage.removeItem('silsilah-pw')}catch(e){}
   $('sg').disabled=true;try{await sync(st);st('Selesai. '+live().length+' orang tersinkron.')}catch(e){st(e.message)}$('sg').disabled=false}}
-if('serviceWorker' in navigator&&location.protocol==='https:')navigator.serviceWorker.register('sw.js').catch(()=>{});
+if('serviceWorker' in navigator&&location.protocol==='https:')navigator.serviceWorker.register('sw.js',{updateViaCache:'none'}).then(r=>r.update()).catch(()=>{});
 </script></body></html>
