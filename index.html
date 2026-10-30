@@ -1,6 +1,6 @@
 <!DOCTYPE html>
 <html lang="id"><head><meta charset="utf-8">
-<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'sha256-SREUSj24klrSpXCD/PGiyheu4Zpq9LQzAdCkppSNiWk='; style-src 'unsafe-inline'; img-src 'self' data:; connect-src https:; manifest-src 'self'; worker-src 'self'; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'sha256-SREUSj24klrSpXCD/PGiyheu4Zpq9LQzAdCkppSNiWk=' 'unsafe-eval'; style-src 'unsafe-inline'; img-src 'self' data:; connect-src https:; manifest-src 'self'; worker-src 'self'; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Silsilah keluarga</title>
 <link rel="manifest" href="manifest.webmanifest"><meta name="theme-color" content="#1f6f54"><link rel="icon" href="icon-192.png"><link rel="apple-touch-icon" href="icon-192.png">
@@ -29,12 +29,14 @@ svg text{font-family:Georgia,serif}
 [hidden]{display:none!important}
 </style></head><body>
 <header><h1>Silsilah keluarga</h1><div class="row" style="margin:0"><button id="bm">Menu</button><button id="bl">Daftar</button><button id="ba" class="pr">+ Tambah</button></div></header>
-<div id="mn" class="row" hidden style="margin:0;padding:8px 14px;border-bottom:1px solid var(--bd)"><button id="bs">Sinkron OneDrive</button><button id="be">Ekspor cadangan</button><button id="bi">Impor cadangan</button><button id="bd">Gabung data ganda</button></div>
+<div id="mn" class="row" hidden style="margin:0;padding:8px 14px;border-bottom:1px solid var(--bd)"><button id="bs">Sinkron Google Drive</button><button id="be">Ekspor cadangan</button><button id="bi">Impor cadangan</button><button id="bd">Gabung data ganda</button></div>
 <input id="backupFile" type="file" accept=".json,application/json" hidden>
 <main id="app"></main>
-<footer style="max-width:760px;margin:0 auto;padding:0 14px 18px;color:var(--mu);font-size:12px">Tips keamanan: ekspor cadangan secara berkala dan simpan di tempat aman. Cadangan dienkripsi dengan sandi sinkron; bila Anda memilih tanpa sandi, jangan bagikan berkasnya.</footer>
+<footer style="max-width:760px;margin:0 auto;padding:0 14px 18px;color:var(--mu);font-size:12px">Sinkron: Google Drive rumahbanyuanyar@gmail.com</footer>
 <script>
 const KEY='silsilah-v1',$=i=>document.getElementById(i),app=$('app');
+// === LINK GOOGLE DRIVE MU SING MAU ===
+const GOOGLE_URL='https://script.google.com/macros/s/AKfycbzAf8TPFVb9JGzHUrm6al1jsheD3LZVjrLGpULhgfFQC5hrYXMR3ef3Z9ifONIr9uaN_g/exec';
 let P=[],C=null,view='tree',edit=null,Z=1,AD=2,DD=2;
 const okId=x=>typeof x==='string'&&/^[\w-]{1,64}$/.test(x),okD=x=>typeof x==='string'&&/^\d{4}(-\d{2}-\d{2})?$/.test(x);
 function clean(a){if(!Array.isArray(a))return[];const seen=new Set(),out=[];
@@ -76,29 +78,25 @@ window.addEventListener('error',ev=>fail(ev.error||ev.message));window.addEventL
 function render(){try{render0()}catch(e){fail(e)}}
 function render0(){$('bl').textContent=view==='tree'?'Daftar':'Pohon';view==='form'?form():view==='list'?list():view==='sync'?syncView():view==='dup'?dupView():tree()}
 async function exportBackup(){
- const pw=PW||prompt('Sandi untuk mengenkripsi cadangan (kosongkan = TANPA enkripsi, tidak disarankan):')||'';
  const payload={format:'silsilah-keluarga-backup',version:1,exportedAt:new Date().toISOString(),people:P},d=new Date().toISOString().slice(0,10);
- if(pw){const e=JSON.parse(await enc(payload,pw,crypto.getRandomValues(new Uint8Array(16))));dl('silsilah-keluarga-'+d+'.enc.json',JSON.stringify({format:'silsilah-keluarga-enc',...e}))}
- else dl('silsilah-keluarga-'+d+'.json',JSON.stringify(payload,null,2));
+ dl('silsilah-keluarga-'+d+'.json',JSON.stringify(payload,null,2));
 }
 function importBackup(file){
  const reader=new FileReader();reader.onload=async()=>{try{
   let raw=JSON.parse(String(reader.result||''));
-  if(raw&&raw.format==='silsilah-keluarga-enc'){const pw=PW||prompt('Sandi cadangan:')||'';try{raw=(await dec(JSON.stringify(raw),pw)).obj}catch(x){alert('Sandi salah atau berkas rusak.');return}}
   const arr=Array.isArray(raw)?raw:(raw&&raw.format==='silsilah-keluarga-backup'&&Array.isArray(raw.people)?raw.people:null);
-  if(!arr||arr.some(p=>!p||typeof p!=='object'||typeof p.id!=='string'||typeof p.name!=='string')){alert('Berkas cadangan tidak dikenali atau strukturnya tidak valid.');return;}
-  const ids=new Set();for(const p of arr){if(ids.has(p.id)){alert('Berkas memiliki ID orang yang ganda. Impor dibatalkan.');return;}ids.add(p.id);}
-  const cl=clean(arr);if(!cl.length){alert('Tidak ada data valid di berkas ini.');return}
-  if(confirm('Berkas berisi '+cl.length+' orang. OK = GABUNGKAN dengan data di HP ini (aman). Batal = pilihan lain.'))merge(cl);
-  else{if(!confirm('GANTI seluruh data di HP ini dengan isi berkas? Ekspor cadangan data saat ini dahulu.'))return;P=cl}
-  C=null;edit=null;view='tree';Z=1;if(!save()){alert('Gagal menyimpan data di browser. Penyimpanan mungkin penuh.');return;}render();alert('Impor selesai: '+live().length+' orang dimuat.');
- }catch(e){alert('Tidak dapat membaca berkas JSON: '+e.message);}};reader.onerror=()=>alert('Berkas tidak dapat dibaca.');reader.readAsText(file);
+  if(!arr) {alert('Berkas tidak valid'); return;}
+  const cl=clean(arr);if(!cl.length){alert('Tidak ada data valid');return}
+  if(confirm('Berkas berisi '+cl.length+' orang. OK = GABUNGKAN, Batal = GANTI?'))merge(cl);
+  else{P=cl}
+  C=null;edit=null;view='tree';Z=1;if(!save()){alert('Gagal menyimpan');return;}render();alert('Impor selesai: '+live().length+' orang.');
+ }catch(e){alert('Tidak dapat membaca berkas: '+e.message);}};reader.readAsText(file);
 }
-$('be').onclick=()=>exportBackup().catch(e=>alert('Ekspor gagal: '+e.message));$('bi').onclick=()=>{$('backupFile').value='';$('backupFile').click()};$('backupFile').onchange=()=>{const f=$('backupFile').files&&$('backupFile').files[0];if(f)importBackup(f)};
+$('be').onclick=()=>exportBackup();$('bi').onclick=()=>{$('backupFile').value='';$('backupFile').click()};$('backupFile').onchange=()=>{const f=$('backupFile').files&&$('backupFile').files[0];if(f)importBackup(f)};
 
 function tree(){
  const c=by(C)||live().sort(cmp)[0];
- if(!c){app.innerHTML='<div class="card">Belum ada data. Ketuk "+ Tambah" untuk memasukkan orang pertama.</div>';return}
+ if(!c){app.innerHTML='<div class="card">Belum ada data. Ketuk "+ Tambah" untuk memasukkan orang pertama. <br><br>Jika data ada di Google Drive, ketuk Menu > Sinkron Google Drive</div>';return}
  C=c.id;
  const f=by(c.fatherId),m=by(c.motherId);
  const up=[],dn=[];let cur=[c,...spouses(c)];
@@ -115,7 +113,7 @@ function tree(){
    if(ok(fa)&&ok(mo)&&Math.abs(fa.x-mo.x)===W+G)s+=`<path d="M${ax} ${a.y}V${a.y-18}H${(fa.x+mo.x)/2+W/2}V${fa.y+H/2}" fill="none" stroke="var(--mu)" stroke-width="1"/>`;
    else[fa,mo].forEach(b=>{if(ok(b))s+=`<path d="M${ax} ${a.y}V${a.y-18}H${b.x+W/2}V${b.y+H}" fill="none" stroke="var(--mu)" stroke-width="1"/>`})})});
  rows.forEach(r=>r.forEach(n=>{const a=pos[n.id],ce=n.id===c.id;s+=`<g data-id="${esc(n.id)}" style="cursor:pointer" opacity="${n.death?0.65:1}"><rect x="${a.x}" y="${a.y}" width="${W}" height="${H}" rx="6" fill="${ce?'var(--acbg)':'var(--bg)'}" stroke="${ce?'var(--ac)':'var(--bd)'}" stroke-width="${ce?2:1}"/><text x="${a.x+W/2}" y="${a.y+19}" text-anchor="middle" font-size="13" font-weight="500" fill="var(--tx)">${esc(short(n.name))}</text><text x="${a.x+W/2}" y="${a.y+35}" text-anchor="middle" font-size="12" fill="var(--mu)">${esc(span(n))}</text></g>`}));
- app.innerHTML=`<div class="row" style="margin:0 0 8px"><button data-z="-">−</button><button data-z="+">+</button><span class="mu">Geser dan perbesar gambar. Ketuk kotak untuk menjadikannya pusat.</span></div>
+ app.innerHTML=`<div class="row" style="margin:0 0 8px"><button data-z="-">−</button><button data-z="+">+</button><span class="mu">Ketuk kotak untuk pusat.</span></div>
  <div class="row" style="margin:0 0 8px"><span class="mu">Ke atas: ${AD}</span><button data-gen="A-">−</button><button data-gen="A+">+</button><span class="mu">Ke bawah: ${DD}</span><button data-gen="D-">−</button><button data-gen="D+">+</button></div>
  <div id="sc"><svg width="${sw*Z}" height="${sh*Z}" viewBox="0 0 ${sw} ${sh}">${s}</svg></div>
  <div class="card"><h2>${esc(c.name)}</h2><div class="mu" style="margin-top:6px">Lahir: ${esc(fmt(c.birth))}${c.death?' · Meninggal: '+esc(fmt(c.death)):''}</div>
@@ -141,7 +139,7 @@ function mergePeople(keepId,dropId){const k=P.find(x=>x.id===keepId),d=P.find(x=
 function dupView(){const G=dupGroups();
  app.innerHTML=G.length?G.map((a,gi)=>`<div class="card" style="margin-top:0;margin-bottom:12px"><h2>${esc(a[0].name)}</h2><div class="mu">Pilih data yang dipertahankan.</div>`+a.map((p,i)=>`<label style="display:flex;gap:8px;align-items:center;color:var(--tx)"><input type="radio" name="k${gi}" value="${esc(p.id)}" style="width:auto"${i?'':' checked'}> ${esc(span(p)||'tanpa tahun')} · ayah: ${esc((by(p.fatherId)||{}).name||'-')} · anak: ${kids(p.id).length}</label>`).join('')+`<div class="row"><button class="pr" data-m="${gi}">Gabungkan</button></div></div>`).join(''):'<div class="card" style="margin-top:0">Tidak ada nama ganda.</div>';
  app.querySelectorAll('[data-m]').forEach(b=>b.onclick=()=>{const gi=+b.dataset.m,a=G[gi],keep=app.querySelector('input[name=k'+gi+']:checked').value;
-  if(!confirm('Gabungkan '+a.length+' data bernama "'+a[0].name+'" menjadi satu? Cadangkan dulu; pembatalan hanya lewat impor cadangan.'))return;
+  if(!confirm('Gabungkan '+a.length+' data bernama "'+a[0].name+'" menjadi satu?'))return;
   a.forEach(p=>{if(p.id!==keep)mergePeople(keep,p.id)});save();render()})}
 function list(){
  app.innerHTML='<input id="q" placeholder="Cari nama…" autocomplete="off"><div id="ls"></div>';
@@ -155,23 +153,23 @@ function form(){
  const L=live().filter(x=>x.id!==p.id).sort((a,b)=>a.name.localeCompare(b.name)),dup=n=>L.filter(x=>x.name===n).length>1,dl=L.map(x=>`<option value="${esc(dup(x.name)?lab(x):x.name)}"></option>`).join(''),nm=id=>{const x=by(id);return x?esc(x.name):''},sp=p.id?spouses(p):[],role=q=>q.sx||(p.sx==='L'?'P':p.sx==='P'?'L':'P'),sv=r=>sp.filter(q=>role(q)===r).map(q=>esc(q.name)).join('; ');
  app.innerHTML=`<div class="card" style="margin-top:0"><h2>${edit?'Sunting orang':'Tambah orang'}</h2>
  <label>Nama</label><input id="fn" value="${esc(p.name)}" autocomplete="off">
- <label>Nama ayah (ketik, atau pilih dari saran)</label><input id="ff" list="dl" autocomplete="off" value="${nm(p.fatherId)}"><datalist id="dl">${dl}</datalist>
- <label>Nama ibu (ketik, atau pilih dari saran)</label><input id="fm" list="dl" autocomplete="off" value="${nm(p.motherId)}"><label>Suami (ketik nama; pisahkan dengan titik koma jika lebih dari satu)</label><input id="fp1" list="dl" autocomplete="off" value="${sv('L')}"><label>Istri (ketik nama; pisahkan dengan titik koma jika lebih dari satu)</label><input id="fp2" list="dl" autocomplete="off" value="${sv('P')}"><div class="mu" style="margin-top:6px">Jika nama belum ada di daftar, otomatis ditambahkan sebagai orang baru.</div>
- <label>Tanggal lahir (ketik tanggal bulan tahun, boleh tahun saja)</label><input id="fb" inputmode="numeric" placeholder="contoh: 1 8 1961" autocomplete="off" value="${p.birth?esc(fmt(p.birth)):''}">
- <label>Tanggal meninggal (kosongkan jika masih ada)</label><input id="fd" inputmode="numeric" placeholder="contoh: 5 3 2015" autocomplete="off" value="${p.death?esc(fmt(p.death)):''}">
+ <label>Nama ayah</label><input id="ff" list="dl" autocomplete="off" value="${nm(p.fatherId)}"><datalist id="dl">${dl}</datalist>
+ <label>Nama ibu</label><input id="fm" list="dl" autocomplete="off" value="${nm(p.motherId)}"><label>Suami</label><input id="fp1" list="dl" autocomplete="off" value="${sv('L')}"><label>Istri</label><input id="fp2" list="dl" autocomplete="off" value="${sv('P')}"><div class="mu" style="margin-top:6px">Jika nama belum ada, otomatis ditambahkan.</div>
+ <label>Tanggal lahir</label><input id="fb" inputmode="numeric" placeholder="contoh: 1 8 1961" autocomplete="off" value="${p.birth?esc(fmt(p.birth)):''}">
+ <label>Tanggal meninggal</label><input id="fd" inputmode="numeric" placeholder="contoh: 5 3 2015" autocomplete="off" value="${p.death?esc(fmt(p.death)):''}">
  <div class="err" id="fe"></div>
  <div class="row"><button class="pr" id="fs">Simpan</button><button id="fc">Batal</button>${edit?'<button id="fx">Hapus</button>':''}</div></div>`;
  $('fc').onclick=()=>{view='tree';edit=null;render()};
  $('fs').onclick=()=>{const name=$('fn').value.trim(),b=pd($('fb').value),d=pd($('fd').value),e=$('fe');
   if(!name){e.textContent='Nama wajib diisi.';return}
-  if(b===null||d===null){e.textContent='Tanggal tidak dikenali. Ketik misalnya 1 8 1961 (tanggal bulan tahun) atau tahunnya saja.';return}
-  if(b&&d&&d<b){e.textContent='Tanggal meninggal tidak boleh sebelum tanggal lahir.';return}
+  if(b===null||d===null){e.textContent='Tanggal tidak dikenali.';return}
+  if(b&&d&&d<b){e.textContent='Tanggal meninggal tidak boleh sebelum lahir.';return}
   const fr=res($('ff').value,edit),mr=res($('fm').value,edit);const pl=t=>t.split(';').filter(x=>x.trim()).map(x=>res(x,edit)),H0=pl($('fp1').value),W0=pl($('fp2').value),er=[fr,mr,...H0,...W0].map(r=>r.err).find(Boolean);if(er){e.textContent=er;return}
-  if(edit&&(fr.id===edit||mr.id===edit)){e.textContent='Seseorang tidak dapat menjadi ayah atau ibu dirinya sendiri.';return}
-  if(fr.id&&mr.id&&fr.id===mr.id){e.textContent='Ayah dan ibu tidak boleh menunjuk orang yang sama.';return}
-  const creates=[fr,mr,...H0,...W0].filter(r=>r.name);if(creates.length&&!confirm('Ada '+creates.length+' nama yang belum ditemukan. Nama itu akan dibuat sebagai orang baru. Periksa ejaan agar tidak membuat data ganda. Lanjutkan?'))return;
+  if(edit&&(fr.id===edit||mr.id===edit)){e.textContent='Tidak bisa jadi ayah/ibu diri sendiri.';return}
+  if(fr.id&&mr.id&&fr.id===mr.id){e.textContent='Ayah dan ibu tidak boleh sama.';return}
+  const creates=[fr,mr,...H0,...W0].filter(r=>r.name);if(creates.length&&!confirm('Ada '+creates.length+' nama baru akan dibuat. Lanjutkan?'))return;
   const wouldCycle=(childId,parentId)=>{const seen=new Set(),stack=[parentId];while(stack.length){const id=stack.pop();if(id===childId)return true;if(!id||seen.has(id))continue;seen.add(id);const q=P.find(x=>x.id===id);if(q){if(q.fatherId)stack.push(q.fatherId);if(q.motherId)stack.push(q.motherId)}}return false};
-  if(edit&&((fr.id&&wouldCycle(edit,fr.id))||(mr.id&&wouldCycle(edit,mr.id)))){e.textContent='Hubungan ini akan membentuk lingkaran keturunan. Periksa kembali ayah dan ibu.';return}
+  if(edit&&((fr.id&&wouldCycle(edit,fr.id))||(mr.id&&wouldCycle(edit,mr.id)))){e.textContent='Akan membentuk lingkaran.';return}
   const mk=r=>{if(r.name){const n={id:uid(),name:r.name,fatherId:'',motherId:'',birth:'',death:'',deleted:false,updated:tick()};P.push(n);return n.id}return r.id};
   const o={name,fatherId:mk(fr),motherId:mk(mr),birth:b,death:d,updated:tick()};
   let tp;if(edit){tp=P.find(x=>x.id===edit);Object.assign(tp,o)}else{tp={id:uid(),deleted:false,spouseIds:[],...o};P.push(tp);C=tp.id}
@@ -179,41 +177,60 @@ function form(){
   H.forEach(i=>{const q=P.find(x=>x.id===i);if(q){q.sx='L';q.updated=now}});W.forEach(i=>{const q=P.find(x=>x.id===i);if(q){q.sx='P';q.updated=now}});
   if(H.length&&!W.length)tp.sx='P';else if(W.length&&!H.length)tp.sx='L';
   setSp(tp,[...H,...W]);
-  if(!save()){e.textContent='Gagal menyimpan di HP. Penyimpanan browser mungkin penuh atau dibatasi. Ekspor data bila masih memungkinkan.';return}view='tree';edit=null;render()};
- if(edit){const x=$('fx');x.onclick=()=>{if(x.dataset.s){const q=P.find(z=>z.id===edit);q.deleted=true;q.updated=tick();save();if(C===edit)C=null;view='tree';edit=null;render()}else{x.dataset.s=1;x.textContent='Yakin hapus?'}}}
+  if(!save()){e.textContent='Gagal simpan lokal.';return}view='tree';edit=null;render();googleSaveSilent();};
+ if(edit){const x=$('fx');x.onclick=()=>{if(x.dataset.s){const q=P.find(z=>z.id===edit);q.deleted=true;q.updated=tick();save();if(C===edit)C=null;view='tree';edit=null;render();googleSaveSilent()}else{x.dataset.s=1;x.textContent='Yakin hapus?'}}}
 }
 render();
-const CID='ISI_CLIENT_ID_DI_SINI',FN='silsilah.enc',RU=location.origin+location.pathname,AU='https://login.microsoftonline.com/common/oauth2/v2.0/',SC='Files.ReadWrite.AppFolder',GR='https://graph.microsoft.com/v1.0/me/drive/special/approot';
-let TK=null,PW='';try{PW=sessionStorage.getItem('ms-pw')||localStorage.getItem('silsilah-pw')||'';if(PW){sessionStorage.setItem('ms-pw',PW);localStorage.removeItem('silsilah-pw')}const t=JSON.parse(sessionStorage.getItem('ms-tk')||'null');if(t&&t.exp>Date.now())TK=t.t}catch(e){}
-const b64=u=>{let s='';u.forEach(x=>s+=String.fromCharCode(x));return btoa(s)},ub=s=>Uint8Array.from(atob(s),c=>c.charCodeAt(0));
-async function key(pw,salt,it){const k=await crypto.subtle.importKey('raw',new TextEncoder().encode(pw),'PBKDF2',false,['deriveKey']);return crypto.subtle.deriveKey({name:'PBKDF2',salt,iterations:it||600000,hash:'SHA-256'},k,{name:'AES-GCM',length:256},false,['encrypt','decrypt'])}
-async function enc(obj,pw,salt){const iv=crypto.getRandomValues(new Uint8Array(12)),k=await key(pw,salt),c=await crypto.subtle.encrypt({name:'AES-GCM',iv},k,new TextEncoder().encode(JSON.stringify(obj)));return JSON.stringify({v:1,it:600000,salt:b64(salt),iv:b64(iv),data:b64(new Uint8Array(c))})}
-async function dec(txt,pw){const j=JSON.parse(txt),salt=ub(j.salt),k=await key(pw,salt,j.it||200000),p=await crypto.subtle.decrypt({name:'AES-GCM',iv:ub(j.iv)},k,ub(j.data));return{obj:JSON.parse(new TextDecoder().decode(p)),salt}}
 function merge(a){a=clean(a);const m=new Map(P.map(p=>[p.id,p]));a.forEach(r=>{const l=m.get(r.id);if(!l||(r.updated||0)>(l.updated||0))m.set(r.id,r)});P=[...m.values()]}
-const b64u=u=>b64(u).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'');
-async function login(){if(CID.startsWith('ISI_'))throw new Error('Client ID Microsoft belum diisi di berkas ini (variabel CID).');const v=b64u(crypto.getRandomValues(new Uint8Array(32))),ch=b64u(new Uint8Array(await crypto.subtle.digest('SHA-256',new TextEncoder().encode(v))));const stt=b64u(crypto.getRandomValues(new Uint8Array(16)));sessionStorage.setItem('ms-st',stt);sessionStorage.setItem('ms-v',v);sessionStorage.setItem('ms-pw',PW);location.href=AU+'authorize?'+new URLSearchParams({client_id:CID,response_type:'code',redirect_uri:RU,response_mode:'query',state:stt,scope:SC,code_challenge:ch,code_challenge_method:'S256'})}
-async function back(){const q=new URLSearchParams(location.search),c=q.get('code'),er=q.get('error');if(!c&&!er)return false;history.replaceState(null,'',RU);if(c&&q.get('state')!==sessionStorage.getItem('ms-st'))throw new Error('Respons login tidak cocok. Coba lagi.');if(er)throw new Error(q.get('error_description')||er);const r=await fetch(AU+'token',{method:'POST',body:new URLSearchParams({client_id:CID,grant_type:'authorization_code',code:c,redirect_uri:RU,code_verifier:sessionStorage.getItem('ms-v')||'',scope:SC})}),j=await r.json();if(!j.access_token)throw new Error(j.error_description||'Login gagal');TK=j.access_token;sessionStorage.setItem('ms-tk',JSON.stringify({t:TK,exp:Date.now()+(j.expires_in-60)*1000}));return true}
-const gx=async(u,o={})=>{const r=await fetch(u,{...o,headers:{...(o.headers||{}),Authorization:'Bearer '+TK}});if(r.status===401){TK=null;sessionStorage.removeItem('ms-tk');throw new Error('Sesi habis, ketuk Sinkron lagi.')}return r};
-async function sync(st){
- if(!PW)throw new Error('Isi sandi enkripsi dulu.');
- if(!TK){await login();return false}
- for(let i=0;i<3;i++){
-  st('Membaca OneDrive…');
-  let et=null,salt=crypto.getRandomValues(new Uint8Array(16));
-  const m=await gx(GR+':/'+FN+'?select=eTag');
-  if(m.ok){et=(await m.json()).eTag;const t=await(await gx(GR+':/'+FN+':/content')).text();try{const d=await dec(t,PW);merge(d.obj);salt=d.salt}catch(e){throw new Error('Sandi salah atau berkas rusak.')}}
-  else if(m.status!==404)throw new Error('OneDrive error '+m.status);
-  save();st('Mengunggah…');
-  const body=await enc(P,PW,salt),w=await gx(GR+':/'+FN+':/content'+(et?'':'?@microsoft.graph.conflictBehavior=fail'),{method:'PUT',headers:{'Content-Type':'text/plain',...(et?{'If-Match':et}:{})},body});
-  if(w.status===412||w.status===409)continue;
-  if(!w.ok)throw new Error('Unggah gagal '+w.status);
-  return true}
- throw new Error('Berkas terus berubah, coba lagi.')}
+async function googleSaveSilent(){try{await fetch(GOOGLE_URL,{method:'POST',body:JSON.stringify({action:'save',data:JSON.stringify(P)})})}catch(e){}}
+async function googleLoad(st){
+ st('Membaca Google Drive rumahbanyuanyar...');
+ try{
+   const r=await fetch(GOOGLE_URL);
+   const j=await r.json();
+   if(j.error){st('Error Drive: '+j.error); return false;}
+   if(!j.data || j.data==='[]' || j.data.length<5){st('Drive kosong, mengunggah data lokal...'); await googleSave(st); return true;}
+   let arr=[];
+   try{
+     let d=j.data;
+     if(typeof d==='string'){ try{ arr=JSON.parse(d); if(typeof arr==='string') arr=JSON.parse(arr);}catch{ arr=[];}}
+     else arr=d;
+     if(!Array.isArray(arr) && arr.people) arr=arr.people;
+   }catch(e){st('Gagal parse: '+e.message); return false;}
+   arr=clean(arr);
+   st('Ditemukan '+arr.length+' orang di Drive. Menggabungkan...');
+   merge(arr);
+   save();
+   st('Selesai. '+live().length+' orang tersinkron dari Google Drive.');
+   render();
+   return true;
+ }catch(e){st('Gagal load Google Drive: '+e.message); return false;}
+}
+async function googleSave(st){
+ st('Mengunggah ke Google Drive...');
+ try{
+  const r=await fetch(GOOGLE_URL,{method:'POST',body:JSON.stringify({action:'save',data:JSON.stringify(P)})});
+  const j=await r.json();
+  if(j.success){st('Tersimpan di Google Drive! Versi: '+j.version); save(); return true;}
+  else st('Gagal simpan: '+JSON.stringify(j));
+ }catch(e){st('Error simpan: '+e.message);}
+ return false;
+}
 function syncView(){
- app.innerHTML=`<div class="card" style="margin-top:0"><h2>Sinkron OneDrive</h2><label>Sandi enkripsi (sama di semua HP)</label><input id="sp" type="password" autocomplete="off" value="${esc(PW)}"><label style="display:flex;gap:8px;align-items:center"><input id="sr" type="checkbox" style="width:auto"${sessionStorage.getItem('ms-pw')?' checked':''}> Simpan sandi selama sesi browser ini saja</label><div class="mu" style="margin-top:8px">Catatan: sinkronisasi belum aktif sebelum Client ID Microsoft diisi. File ini masih memakai nilai contoh ISI_CLIENT_ID_DI_SINI.</div><div class="row"><button class="pr" id="sg">Sinkron sekarang</button></div><div class="mu" id="ss" style="margin-top:10px"></div></div>`;
+ app.innerHTML=`<div class="card" style="margin-top:0"><h2>Sinkron Google Drive</h2>
+ <div class="mu">Folder: silsilah (ID: 1bpNwsRVr4_MdvSt2Zk9SSukymSENIpcB) - Akun rumahbanyuanyar@gmail.com</div>
+ <div class="mu" style="margin-top:8px">Data disimpan di silsilah.json di Drive mu</div>
+ <div class="row"><button class="pr" id="sg">🔄 Sinkron Sekarang (Ambil dari Drive)</button><button id="sp">💾 Simpan ke Drive</button></div>
+ <div class="mu" id="ss" style="margin-top:10px">Siap.</div>
+ <div class="row" style="margin-top:12px"><button id="sl">Kembali ke Pohon</button></div></div>`;
  const st=t=>{$('ss').textContent=t};
- $('sg').onclick=async()=>{PW=$('sp').value;try{if($('sr').checked)sessionStorage.setItem('ms-pw',PW);else sessionStorage.removeItem('ms-pw');localStorage.removeItem('silsilah-pw')}catch(e){}
-  $('sg').disabled=true;try{st(await sync(st)?'Selesai. '+live().length+' orang tersinkron.':'Mengalihkan ke Microsoft…')}catch(e){st(e.message)}$('sg').disabled=false}}
+ $('sg').onclick=async()=>{ $('sg').disabled=true; await googleLoad(st); $('sg').disabled=false; };
+ $('sp').onclick=async()=>{ $('sp').disabled=true; await googleSave(st); $('sp').disabled=false; };
+ $('sl').onclick=()=>{view='tree'; render();};
+ // auto load saat buka sync
+ googleLoad(st);
+}
 if('serviceWorker' in navigator&&location.protocol==='https:')navigator.serviceWorker.register('sw.js').catch(()=>{});
-back().then(ok=>{if(ok){view='sync';render();$('sg').click()}}).catch(e=>{view='sync';render();$('ss').textContent=e.message});
+// Auto coba load dari Google Drive saat pertama buka jika lokal kosong
+if(live().length===0){ fetch(GOOGLE_URL).then(r=>r.json()).then(j=>{ if(j.data){ try{let a=JSON.parse(j.data); if(typeof a==='string') a=JSON.parse(a); a=clean(a); if(a.length){ merge(a); save(); render(); } }catch(e){} } }).catch(()=>{}); }
 </script></body></html>
